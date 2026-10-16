@@ -1,0 +1,16 @@
+{
+  "category": "application_bug",
+  "root_cause": "report_date() takes the business date from the machine's local time zone (time.localtime), but business dates are defined in America/New_York. The CI job runs with TZ=UTC, so an order at 2026-03-01 03:30 UTC (22:30 on Feb 28 in New York) is filed under the wrong day. The same bug would hit any production host that isn't set to New York time.",
+  "evidence": [
+    "failure.log: AssertionError: '2026-03-01' != '2026-02-28'",
+    "repo/src/reports.py: time.strftime('%Y-%m-%d', time.localtime(epoch_seconds)), with docstring 'Uses the machine's local time zone'",
+    "repo/tests/test_reports.py comment: '2026-03-01 03:30 UTC is 2026-02-28 22:30 in New York (business time zone)'",
+    "ci.json: unit job sets TZ=UTC",
+    "history.json: 5/5 failed (deterministic)",
+    "Local check: with the patch, the test passes with TZ=UTC and TZ=Asia/Tokyo"
+  ],
+  "confidence": 0.85,
+  "action": "propose_mr",
+  "patch": "--- a/src/reports.py\n+++ b/src/reports.py\n@@ -1,4 +1,9 @@\n-import time\n+from datetime import datetime, timezone\n+from zoneinfo import ZoneInfo\n+\n+BUSINESS_TZ = ZoneInfo(\"America/New_York\")\n+\n def report_date(epoch_seconds):\n-    \"\"\"Business date for a timestamp. Uses the machine's local time zone.\"\"\"\n-    return time.strftime(\"%Y-%m-%d\", time.localtime(epoch_seconds))\n+    \"\"\"Business date for a timestamp, in the business time zone (America/New_York),\n+    independent of the machine's local time zone.\"\"\"\n+    return datetime.fromtimestamp(epoch_seconds, tz=timezone.utc).astimezone(BUSINESS_TZ).strftime(\"%Y-%m-%d\")\n",
+  "message_to_human": "report_date() uses the host's local time zone, but the test (and the business definition it documents) expects New York business dates. With TZ=UTC in CI, late-night New York orders land on the next day. That is a real bug on any UTC server, not just a CI quirk. This MR makes the business time zone explicit: it converts the epoch to an aware UTC datetime and then to ZoneInfo('America/New_York'), so the result no longer depends on the machine's TZ. I verified it under TZ=UTC and TZ=Asia/Tokyo. I didn't change CI's TZ, because that would hide the bug. Please confirm America/New_York is the correct business zone. Note that zoneinfo needs system tzdata or the tzdata package on hosts without it."
+}

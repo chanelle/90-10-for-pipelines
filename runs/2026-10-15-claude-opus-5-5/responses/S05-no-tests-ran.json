@@ -1,0 +1,15 @@
+{
+  "category": "configuration",
+  "root_cause": "The test files were renamed to the org's *_test.py convention (tests/slug_test.py), but the CI job still discovers tests with -p 'test_*.py'. Zero tests are found, and unittest exits with code 5 (NO TESTS RAN).",
+  "evidence": [
+    "failure.log: 'Ran 0 tests' / 'NO TESTS RAN' / exit code 5",
+    "repo/CHANGELOG.md: 'Renamed test files to the *_test.py convention used by the rest of the org.'",
+    "repo/tests/ contains only slug_test.py, which doesn't match test_*.py",
+    "ci.json: python -m unittest discover -s tests -p 'test_*.py' -v",
+    "Local check: with -p '*_test.py', 1 test runs and passes"
+  ],
+  "confidence": 0.95,
+  "action": "propose_mr",
+  "patch": "--- a/ci.json\n+++ b/ci.json\n@@ -5,7 +5,7 @@\n     {\n       \"name\": \"unit\",\n       \"script\": [\n-        \"python -m unittest discover -s tests -p 'test_*.py' -v\"\n+        \"python -m unittest discover -s tests -p '*_test.py' -v\"\n       ]\n     }\n   ]\n",
+  "message_to_human": "The unit job ran 0 tests. The CHANGELOG says test files were renamed to the org's *_test.py convention (tests/slug_test.py), but ci.json still discovers with -p 'test_*.py'. This MR updates the discovery pattern to '*_test.py'. Locally, the slug test is found again and passes. Exit code 5 did its job here: the suite was silently empty. Please keep it as a failure rather than allowing zero tests."
+}

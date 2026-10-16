@@ -1,0 +1,29 @@
+{
+  "scenario": "S01-timing-flake",
+  "runs": 20,
+  "failed": 12,
+  "history": [
+    "passed",
+    "failed (unit)",
+    "failed (unit)",
+    "failed (unit)",
+    "failed (unit)",
+    "passed",
+    "passed",
+    "failed (unit)",
+    "passed",
+    "failed (unit)",
+    "passed",
+    "passed",
+    "passed",
+    "failed (unit)",
+    "failed (unit)",
+    "failed (unit)",
+    "failed (unit)",
+    "passed",
+    "failed (unit)",
+    "failed (unit)"
+  ],
+  "reproduces": true,
+  "checked_at": "2026-10-15T22:52:35Z"
+}

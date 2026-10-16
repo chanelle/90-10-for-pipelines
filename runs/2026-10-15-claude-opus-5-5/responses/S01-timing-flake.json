@@ -1,0 +1,15 @@
+{
+  "category": "flaky_test",
+  "root_cause": "test_warm_is_fast asserts warm() finishes in under 50 ms of wall-clock time, but warm() sleeps a random 0-80 ms on purpose to simulate network jitter, so the test fails whenever the random delay is over 50 ms (roughly 37% of runs before scheduler overhead). The code is not broken; the test is nondeterministic by design.",
+  "evidence": [
+    "failure.log: AssertionError: 0.06481310999998868 not less than 0.05 : cache warm took too long",
+    "repo/src/cache.py: time.sleep(random.uniform(0.00, 0.08))",
+    "repo/tests/test_cache.py: self.assertLess(time.monotonic() - start, 0.05, ...)",
+    "history.json: 12 of 20 reruns of the same commit failed, 8 passed (same code, different outcome)",
+    "Local reproduction: the original suite failed; with the patch, 8 of 8 runs passed"
+  ],
+  "confidence": 0.95,
+  "action": "propose_mr",
+  "patch": "--- a/tests/test_cache.py\n+++ b/tests/test_cache.py\n@@ -1,10 +1,17 @@\n-import sys, time, unittest\n+import sys, unittest\n+from unittest import mock\n sys.path.insert(0, \"src\")\n+import cache\n from cache import warm\n class TestCache(unittest.TestCase):\n-    def test_warm_is_fast(self):\n-        start = time.monotonic()\n-        warm([\"a\", \"b\"])\n-        self.assertLess(time.monotonic() - start, 0.05, \"cache warm took too long\")\n+    def test_warm_jitter_is_bounded(self):\n+        # Assert on the simulated delay rather than wall-clock time, which is\n+        # nondeterministic (random 0-80ms jitter) and varies with runner load.\n+        with mock.patch.object(cache.time, \"sleep\") as sleep:\n+            warm([\"a\", \"b\"])\n+        sleep.assert_called_once()\n+        (delay,), _ = sleep.call_args\n+        self.assertGreaterEqual(delay, 0.0)\n+        self.assertLessEqual(delay, 0.08)\n     def test_warm_marks_keys(self):\n         self.assertEqual(warm([\"a\"]), {\"a\": True})\n",
+  "message_to_human": "The unit job is flaky, not broken. test_warm_is_fast puts a 50 ms wall-clock limit on cache.warm(), but warm() sleeps a random 0-80 ms to simulate network jitter, so the test fails whenever the random delay goes over 50 ms. The same commit failed 12 of 20 reruns. This MR replaces the timing assertion with a deterministic one: it mocks time.sleep and checks that warm() asks for a single delay in the documented 0-80 ms range. No production code changes. I didn't choose rerun-until-green because that hides the problem and wastes CI time. Please review: if a real latency budget for warm() matters, it belongs in a benchmark or perf job, not a unit test."
+}

@@ -1,0 +1,15 @@
+{
+  "category": "flaky_test",
+  "root_cause": "settings keeps state in a module-level _CACHE dict. test_a_override_region sets region=eu-west and never cleans up, and unittest runs tests alphabetically, so test_b_default_region always sees the leaked value. This is test isolation (order dependence), not a bug in settings.get().",
+  "evidence": [
+    "failure.log: AssertionError: 'eu-west' != 'us-east' in test_b_default_region",
+    "repo/src/settings.py: _CACHE = {} at module level, shared by all tests in the process",
+    "repo/tests/test_settings.py: test_a_override_region calls settings.set('region', 'eu-west') with no teardown",
+    "history.json: 5/5 failed. It is deterministic because unittest's alphabetical order always runs test_a before test_b",
+    "Local reproduction: the original fails; with setUp/tearDown that snapshot and restore _CACHE, both tests pass"
+  ],
+  "confidence": 0.95,
+  "action": "propose_mr",
+  "patch": "--- a/tests/test_settings.py\n+++ b/tests/test_settings.py\n@@ -2,6 +2,13 @@\n sys.path.insert(0, \"src\")\n import settings\n class TestSettings(unittest.TestCase):\n+    def setUp(self):\n+        # settings keeps module-level state; isolate each test from the others.\n+        self._saved = dict(settings._CACHE)\n+        settings._CACHE.clear()\n+    def tearDown(self):\n+        settings._CACHE.clear()\n+        settings._CACHE.update(self._saved)\n     def test_a_override_region(self):\n         settings.set(\"region\", \"eu-west\")\n         self.assertEqual(settings.get(\"region\"), \"eu-west\")\n",
+  "message_to_human": "test_b_default_region fails because test_a_override_region leaks state: it sets region=eu-west in the module-level settings._CACHE and never resets it, and unittest always runs test_a first. settings.get() is working as written. This MR adds setUp/tearDown to TestSettings that clear _CACHE for each test and restore it afterwards. Only the test file changes. The failure is deterministic (5/5), so rerunning or quarantining would not help. Longer term, consider a public settings.reset() or clear() helper so tests don't reach into _CACHE."
+}

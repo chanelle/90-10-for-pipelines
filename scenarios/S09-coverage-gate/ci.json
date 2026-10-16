@@ -1,0 +1,12 @@
+{
+  "image": "python:3.13",
+  "history_runs": 5,
+  "jobs": [
+    {
+      "name": "coverage",
+      "script": [
+        "python tools/coverage_gate.py --source src --min 80"
+      ]
+    }
+  ]
+}

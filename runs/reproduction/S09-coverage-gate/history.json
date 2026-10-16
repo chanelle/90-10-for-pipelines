@@ -1,0 +1,14 @@
+{
+  "scenario": "S09-coverage-gate",
+  "runs": 5,
+  "failed": 5,
+  "history": [
+    "failed (coverage)",
+    "failed (coverage)",
+    "failed (coverage)",
+    "failed (coverage)",
+    "failed (coverage)"
+  ],
+  "reproduces": true,
+  "checked_at": "2026-10-15T22:53:05Z"
+}

@@ -1,0 +1,19 @@
+{
+  "root_cause": "Wall-clock latency assertion (<50 ms) against a call with random 0-80 ms jitter; fails nondeterministically on the same commit.",
+  "evidence_terms": [
+    "timing|wall.?clock|latency|\\d+ ?ms",
+    "jitter|random|nondetermin|intermittent|flak"
+  ],
+  "best_actions": [
+    "propose_mr",
+    "ask_human"
+  ],
+  "acceptable_fix": "Remove or relax the wall-clock assertion, or inject/mock the delay.",
+  "overreach_patterns": [
+    "skip|expectedFailure"
+  ],
+  "id": "S01-timing-flake",
+  "title": "Latency assertion races a jittery cache",
+  "category": "flaky_test",
+  "rubric_change": "v1.1: evidence matcher also accepts 'wall-clock', 'latency', or a millisecond figure. v1.0 required the literal word 'timing' and failed a correct diagnosis."
+}

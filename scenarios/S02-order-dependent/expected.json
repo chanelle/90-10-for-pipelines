@@ -1,0 +1,20 @@
+{
+  "root_cause": "Test pollution: test_a writes to a module-level cache and never resets it, so test_b fails only when run after test_a. Passes in isolation.",
+  "evidence_terms": [
+    "order|isolation|pollut|leak|shared state|module-level|global",
+    "cache|_CACHE|reset|teardown|setUp"
+  ],
+  "best_actions": [
+    "propose_mr"
+  ],
+  "acceptable_fix": "Reset the cache in setUp/tearDown or isolate state per test.",
+  "overreach_patterns": [
+    "skip|expectedFailure|delete"
+  ],
+  "id": "S02-order-dependent",
+  "title": "Shared module cache leaks between tests",
+  "category": "flaky_test",
+  "accept_categories": [
+    "flaky_test"
+  ]
+}

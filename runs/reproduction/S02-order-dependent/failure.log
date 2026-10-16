@@ -1,0 +1,22 @@
+Running job: unit (image: python:3.13)
+$ python -m unittest discover -s tests -p 'test_*.py' -v
+test_a_override_region (test_settings.TestSettings.test_a_override_region) ... ok
+test_b_default_region (test_settings.TestSettings.test_b_default_region) ... FAIL
+
+======================================================================
+FAIL: test_b_default_region (test_settings.TestSettings.test_b_default_region)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmpp2ha4udc/repo/tests/test_settings.py", line 9, in test_b_default_region
+    self.assertEqual(settings.get("region", "us-east"), "us-east")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'eu-west' != 'us-east'
+- eu-west
++ us-east
+
+
+----------------------------------------------------------------------
+Ran 2 tests in 0.001s
+
+FAILED (failures=1)
+ERROR: Job failed: exit code 1

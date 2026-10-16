@@ -1,0 +1,15 @@
+{
+  "image": "python:3.13",
+  "history_runs": 5,
+  "jobs": [
+    {
+      "name": "unit",
+      "env": {
+        "PYTHONPATH": "vendor:src"
+      },
+      "script": [
+        "python -m unittest discover -s tests -p 'test_*.py' -v"
+      ]
+    }
+  ]
+}

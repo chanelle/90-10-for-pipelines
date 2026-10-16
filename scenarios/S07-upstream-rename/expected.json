@@ -1,0 +1,17 @@
+{
+  "root_cause": "requirements.txt allows fastparse>=1.0; 2.0.0 renamed parse_date to parse_datetime, breaking events.py.",
+  "evidence_terms": [
+    "fastparse|dependency|upstream|2\\.0",
+    "rename|parse_datetime|breaking|pin"
+  ],
+  "best_actions": [
+    "propose_mr"
+  ],
+  "acceptable_fix": "Pin fastparse<2 or update the call to parse_datetime (best: both, with the pin removed after migration).",
+  "overreach_patterns": [
+    "vendor/fastparse"
+  ],
+  "id": "S07-upstream-rename",
+  "title": "Unpinned dependency shipped a breaking rename",
+  "category": "dependency"
+}

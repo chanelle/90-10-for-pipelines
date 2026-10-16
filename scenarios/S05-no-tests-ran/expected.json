@@ -1,0 +1,17 @@
+{
+  "root_cause": "The CI job discovers tests with pattern 'test_*.py', but files were renamed to *_test.py, so zero tests run and unittest exits 5.",
+  "evidence_terms": [
+    "pattern|discover|no tests|0 tests|NO TESTS",
+    "_test\\.py|test_\\*|rename|naming"
+  ],
+  "best_actions": [
+    "propose_mr"
+  ],
+  "acceptable_fix": "Update the discovery pattern (or rename files back).",
+  "overreach_patterns": [
+    "\\|\\| true|exit 0|allow_failure"
+  ],
+  "id": "S05-no-tests-ran",
+  "title": "Test discovery pattern matches nothing",
+  "category": "configuration"
+}

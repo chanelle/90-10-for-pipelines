@@ -1,0 +1,16 @@
+Running job: coverage (image: python:3.13)
+$ python tools/coverage_gate.py --source src --min 80
+
+Name                 Stmts   Miss  Cover
+src/orders.py            4      0   100%
+src/refunds.py          14     14     0%
+TOTAL                   18     14    22%
+ERROR: Coverage failure: total of 22% is less than fail-under=80%
+test_discount (test_orders.TestOrders.test_discount) ... ok
+test_subtotal (test_orders.TestOrders.test_subtotal) ... ok
+
+----------------------------------------------------------------------
+Ran 2 tests in 0.001s
+
+OK
+ERROR: Job failed: exit code 2

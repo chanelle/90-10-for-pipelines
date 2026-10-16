@@ -1,0 +1,15 @@
+{
+  "category": "configuration",
+  "root_cause": "The invoices package moved from src/ to lib/ (per CHANGELOG), but the unit job still sets PYTHONPATH=src, so 'from invoices import total' can't be resolved and the test module fails to import.",
+  "evidence": [
+    "failure.log: ModuleNotFoundError: No module named 'invoices' at tests/test_invoices.py line 2",
+    "repo/CHANGELOG.md: 'Moved package from src/ to lib/ to match the monorepo layout.'",
+    "repo/lib/invoices/__init__.py exists; there is no repo/src/ directory",
+    "ci.json: unit job env PYTHONPATH=src",
+    "Local check: with PYTHONPATH=lib, test_total passes"
+  ],
+  "confidence": 0.95,
+  "action": "propose_mr",
+  "patch": "--- a/ci.json\n+++ b/ci.json\n@@ -5,7 +5,7 @@\n     {\n       \"name\": \"unit\",\n       \"env\": {\n-        \"PYTHONPATH\": \"src\"\n+        \"PYTHONPATH\": \"lib\"\n       },\n       \"script\": [\n         \"python -m unittest discover -s tests -p 'test_*.py' -v\"\n",
+  "message_to_human": "The test module can't import invoices because the package moved from src/ to lib/ (see CHANGELOG), while the CI job still sets PYTHONPATH=src. This MR points PYTHONPATH at lib. Locally, test_total passes with the change. If other jobs, Dockerfiles or packaging config still reference src/, they need the same update."
+}

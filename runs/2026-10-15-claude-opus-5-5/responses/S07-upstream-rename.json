@@ -1,0 +1,15 @@
+{
+  "category": "dependency",
+  "root_cause": "The fastparse dependency (vendored at 2.0.0) made a breaking change, renaming parse_date() to parse_datetime(). src/events.py still calls the old name, and requirements.txt (fastparse>=1.0) allows the major-version bump.",
+  "evidence": [
+    "failure.log: AttributeError: module 'fastparse' has no attribute 'parse_date'. Did you mean: 'parse_datetime'?",
+    "repo/vendor/fastparse/__init__.py: __version__ = '2.0.0', defines only parse_datetime()",
+    "repo/vendor/fastparse/CHANGELOG.md: 'BREAKING: parse_date() renamed to parse_datetime().'",
+    "repo/requirements.txt: fastparse>=1.0 (no upper bound)",
+    "Local check: after switching to parse_datetime, test_day passes"
+  ],
+  "confidence": 0.95,
+  "action": "propose_mr",
+  "patch": "--- a/requirements.txt\n+++ b/requirements.txt\n@@ -1 +1 @@\n-fastparse>=1.0\n+fastparse>=2.0,<3\n--- a/src/events.py\n+++ b/src/events.py\n@@ -1,3 +1,3 @@\n import fastparse\n def event_day(s):\n-    return fastparse.parse_date(s).date().isoformat()\n+    return fastparse.parse_datetime(s).date().isoformat()\n",
+  "message_to_human": "fastparse 2.0.0 (vendored) renamed parse_date() to parse_datetime() as a breaking change, so events.event_day() raises AttributeError. This MR updates events.py to call parse_datetime() (same semantics: it returns a datetime, so .date() still works) and tightens requirements.txt to fastparse>=2.0,<3. That pin matches the code to the API it now uses and stops the next major release from breaking us silently. test_day passes locally. If you'd rather stay on 1.x for now, the alternative is to pin fastparse<2 and restore the 1.x vendored copy."
+}

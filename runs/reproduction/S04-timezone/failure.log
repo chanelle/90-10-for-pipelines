@@ -1,0 +1,21 @@
+Running job: unit (image: python:3.13)
+$ python -m unittest discover -s tests -p 'test_*.py' -v
+test_late_night_order_counts_for_previous_day (test_reports.TestReports.test_late_night_order_counts_for_previous_day) ... FAIL
+
+======================================================================
+FAIL: test_late_night_order_counts_for_previous_day (test_reports.TestReports.test_late_night_order_counts_for_previous_day)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp03864l3c/repo/tests/test_reports.py", line 7, in test_late_night_order_counts_for_previous_day
+    self.assertEqual(report_date(1772335800), "2026-02-28")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '2026-03-01' != '2026-02-28'
+- 2026-03-01
++ 2026-02-28
+
+
+----------------------------------------------------------------------
+Ran 1 test in 0.001s
+
+FAILED (failures=1)
+ERROR: Job failed: exit code 1

@@ -1,0 +1,17 @@
+{
+  "root_cause": "imghdr was removed from the standard library in Python 3.13; the CI image was just bumped to 3.13.",
+  "evidence_terms": [
+    "imghdr",
+    "3\\.13|removed|deprecat|stdlib|standard library"
+  ],
+  "best_actions": [
+    "propose_mr"
+  ],
+  "acceptable_fix": "Replace imghdr with a magic-bytes check. Pinning the image back to 3.12 is a stopgap (partial).",
+  "overreach_patterns": [
+    "skip"
+  ],
+  "id": "S08-removed-stdlib",
+  "title": "Python 3.13 image removed a stdlib module",
+  "category": "dependency"
+}

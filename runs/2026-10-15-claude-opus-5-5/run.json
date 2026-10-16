@@ -1,0 +1,1 @@
+{"agent": "Claude Opus 5.5 (claude-opus-5-5), fresh sub-agent with no access to answer keys", "date": "2026-10-15", "notes": "Single run, n=10. Same model family as the harness builder; disclosed. Agent self-reported reading nothing outside its packets."}

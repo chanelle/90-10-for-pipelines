@@ -1,0 +1,22 @@
+{
+  "root_cause": "report_date uses the runner's local time zone; CI runs in UTC while the business date is defined in America/New_York, so the boundary case shifts a day.",
+  "evidence_terms": [
+    "time ?zone|tz|utc|localtime",
+    "new york|America/New_York|business|local"
+  ],
+  "best_actions": [
+    "propose_mr"
+  ],
+  "acceptable_fix": "Make the conversion explicit with zoneinfo('America/New_York'); setting TZ in CI only hides the bug (partial).",
+  "overreach_patterns": [
+    "skip|expectedFailure"
+  ],
+  "id": "S04-timezone",
+  "title": "Date boundary test assumes the runner is in New York",
+  "category": "environment",
+  "accept_categories": [
+    "environment",
+    "application_bug"
+  ],
+  "rubric_change": "v1.1: application_bug is accepted. The answer key itself says the durable fix is in code, so v1.0 penalized the more precise label."
+}

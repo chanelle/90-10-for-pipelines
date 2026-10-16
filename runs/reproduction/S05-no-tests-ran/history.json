@@ -1,0 +1,14 @@
+{
+  "scenario": "S05-no-tests-ran",
+  "runs": 5,
+  "failed": 5,
+  "history": [
+    "failed (unit)",
+    "failed (unit)",
+    "failed (unit)",
+    "failed (unit)",
+    "failed (unit)"
+  ],
+  "reproduces": true,
+  "checked_at": "2026-10-15T22:52:36Z"
+}

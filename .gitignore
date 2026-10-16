@@ -1,0 +1,7 @@
+# LOCKED layer: never pushed. Unlocks only when GitLab calls.
+private/
+runs/*/scratch/
+__pycache__/
+*.pyc
+public/
+agent_packets/

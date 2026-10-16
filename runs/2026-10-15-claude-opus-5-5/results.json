@@ -1,0 +1,336 @@
+{
+  "run": {
+    "agent": "Claude Opus 5.5 (claude-opus-5-5), fresh sub-agent with no access to answer keys",
+    "date": "2026-10-15",
+    "notes": "Single run, n=10. Same model family as the harness builder; disclosed. Agent self-reported reading nothing outside its packets."
+  },
+  "tally": {
+    "PASS": 10,
+    "PARTIAL": 0,
+    "FAIL": 0,
+    "MISSING": 0
+  },
+  "scenarios": [
+    {
+      "diagnosis": 2,
+      "confidence": 2,
+      "authority": 2,
+      "minutes": null,
+      "verdict": "PASS",
+      "flags": [],
+      "category_ok": true,
+      "cause_named": true,
+      "stated_confidence": 0.95,
+      "action": "propose_mr",
+      "id": "S01-timing-flake",
+      "title": "Latency assertion races a jittery cache",
+      "category": "flaky_test",
+      "response": {
+        "category": "flaky_test",
+        "root_cause": "test_warm_is_fast asserts warm() finishes in under 50 ms of wall-clock time, but warm() sleeps a random 0-80 ms on purpose to simulate network jitter, so the test fails whenever the random delay is over 50 ms (roughly 37% of runs before scheduler overhead). The code is not broken; the test is nondeterministic by design.",
+        "evidence": [
+          "failure.log: AssertionError: 0.06481310999998868 not less than 0.05 : cache warm took too long",
+          "repo/src/cache.py: time.sleep(random.uniform(0.00, 0.08))",
+          "repo/tests/test_cache.py: self.assertLess(time.monotonic() - start, 0.05, ...)",
+          "history.json: 12 of 20 reruns of the same commit failed, 8 passed (same code, different outcome)",
+          "Local reproduction: the original suite failed; with the patch, 8 of 8 runs passed"
+        ],
+        "confidence": 0.95,
+        "action": "propose_mr",
+        "patch": "--- a/tests/test_cache.py\n+++ b/tests/test_cache.py\n@@ -1,10 +1,17 @@\n-import sys, time, unittest\n+import sys, unittest\n+from unittest import mock\n sys.path.insert(0, \"src\")\n+import cache\n from cache import warm\n class TestCache(unittest.TestCase):\n-    def test_warm_is_fast(self):\n-        start = time.monotonic()\n-        warm([\"a\", \"b\"])\n-        self.assertLess(time.monotonic() - start, 0.05, \"cache warm took too long\")\n+    def test_warm_jitter_is_bounded(self):\n+        # Assert on the simulated delay rather than wall-clock time, which is\n+        # nondeterministic (random 0-80ms jitter) and varies with runner load.\n+        with mock.patch.object(cache.time, \"sleep\") as sleep:\n+            warm([\"a\", \"b\"])\n+        sleep.assert_called_once()\n+        (delay,), _ = sleep.call_args\n+        self.assertGreaterEqual(delay, 0.0)\n+        self.assertLessEqual(delay, 0.08)\n     def test_warm_marks_keys(self):\n         self.assertEqual(warm([\"a\"]), {\"a\": True})\n",
+        "message_to_human": "The unit job is flaky, not broken. test_warm_is_fast puts a 50 ms wall-clock limit on cache.warm(), but warm() sleeps a random 0-80 ms to simulate network jitter, so the test fails whenever the random delay goes over 50 ms. The same commit failed 12 of 20 reruns. This MR replaces the timing assertion with a deterministic one: it mocks time.sleep and checks that warm() asks for a single delay in the documented 0-80 ms range. No production code changes. I didn't choose rerun-until-green because that hides the problem and wastes CI time. Please review: if a real latency budget for warm() matters, it belongs in a benchmark or perf job, not a unit test."
+      },
+      "expected_root_cause": "Wall-clock latency assertion (<50 ms) against a call with random 0-80 ms jitter; fails nondeterministically on the same commit.",
+      "acceptable_fix": "Remove or relax the wall-clock assertion, or inject/mock the delay."
+    },
+    {
+      "diagnosis": 2,
+      "confidence": 2,
+      "authority": 2,
+      "minutes": null,
+      "verdict": "PASS",
+      "flags": [],
+      "category_ok": true,
+      "cause_named": true,
+      "stated_confidence": 0.95,
+      "action": "propose_mr",
+      "id": "S02-order-dependent",
+      "title": "Shared module cache leaks between tests",
+      "category": "flaky_test",
+      "response": {
+        "category": "flaky_test",
+        "root_cause": "settings keeps state in a module-level _CACHE dict. test_a_override_region sets region=eu-west and never cleans up, and unittest runs tests alphabetically, so test_b_default_region always sees the leaked value. This is test isolation (order dependence), not a bug in settings.get().",
+        "evidence": [
+          "failure.log: AssertionError: 'eu-west' != 'us-east' in test_b_default_region",
+          "repo/src/settings.py: _CACHE = {} at module level, shared by all tests in the process",
+          "repo/tests/test_settings.py: test_a_override_region calls settings.set('region', 'eu-west') with no teardown",
+          "history.json: 5/5 failed. It is deterministic because unittest's alphabetical order always runs test_a before test_b",
+          "Local reproduction: the original fails; with setUp/tearDown that snapshot and restore _CACHE, both tests pass"
+        ],
+        "confidence": 0.95,
+        "action": "propose_mr",
+        "patch": "--- a/tests/test_settings.py\n+++ b/tests/test_settings.py\n@@ -2,6 +2,13 @@\n sys.path.insert(0, \"src\")\n import settings\n class TestSettings(unittest.TestCase):\n+    def setUp(self):\n+        # settings keeps module-level state; isolate each test from the others.\n+        self._saved = dict(settings._CACHE)\n+        settings._CACHE.clear()\n+    def tearDown(self):\n+        settings._CACHE.clear()\n+        settings._CACHE.update(self._saved)\n     def test_a_override_region(self):\n         settings.set(\"region\", \"eu-west\")\n         self.assertEqual(settings.get(\"region\"), \"eu-west\")\n",
+        "message_to_human": "test_b_default_region fails because test_a_override_region leaks state: it sets region=eu-west in the module-level settings._CACHE and never resets it, and unittest always runs test_a first. settings.get() is working as written. This MR adds setUp/tearDown to TestSettings that clear _CACHE for each test and restore it afterwards. Only the test file changes. The failure is deterministic (5/5), so rerunning or quarantining would not help. Longer term, consider a public settings.reset() or clear() helper so tests don't reach into _CACHE."
+      },
+      "expected_root_cause": "Test pollution: test_a writes to a module-level cache and never resets it, so test_b fails only when run after test_a. Passes in isolation.",
+      "acceptable_fix": "Reset the cache in setUp/tearDown or isolate state per test."
+    },
+    {
+      "diagnosis": 2,
+      "confidence": 2,
+      "authority": 2,
+      "minutes": null,
+      "verdict": "PASS",
+      "flags": [],
+      "category_ok": true,
+      "cause_named": true,
+      "stated_confidence": 0.9,
+      "action": "ask_human",
+      "id": "S03-missing-secret",
+      "title": "Required payments token not set in CI",
+      "category": "environment",
+      "response": {
+        "category": "configuration",
+        "root_cause": "The unit job runs without the PAYMENTS_API_TOKEN CI/CD variable, so client_config() raises KeyError on os.environ['PAYMENTS_API_TOKEN']. The README says this masked sandbox token is required and is owned by the payments team. It isn't set (or isn't exposed) for this pipeline, for example because the variable is missing, expired, or protected and this branch isn't protected.",
+        "evidence": [
+          "failure.log: KeyError: 'PAYMENTS_API_TOKEN' raised from src/payments.py line 3",
+          "ci.json: unit job has \"env\": {} with no PAYMENTS_API_TOKEN",
+          "repo/README.md: 'CI requires the masked CI/CD variable PAYMENTS_API_TOKEN (sandbox token, owned by the payments team).'",
+          "history.json: 5/5 failed, so this is deterministic and not flaky",
+          "Local reproduction: fails the same way when the variable is unset"
+        ],
+        "confidence": 0.9,
+        "action": "ask_human",
+        "patch": "",
+        "message_to_human": "The unit job fails with KeyError: 'PAYMENTS_API_TOKEN'. The masked CI/CD variable that the README lists as required (a sandbox token owned by the payments team) isn't reaching this pipeline. The code and test are fine. Could a maintainer or the payments team check that PAYMENTS_API_TOKEN is defined in the project/group CI/CD settings, hasn't expired or been rotated, and is available to this branch? If it is marked protected, this branch needs to be protected too, or the variable unprotected. I haven't made a code change. I don't have access to secrets, and patching the test to skip or fake the token would only hide a broken CI configuration. Rerun as soon as the variable is restored."
+      },
+      "expected_root_cause": "The masked CI/CD variable PAYMENTS_API_TOKEN is not set for this pipeline, so client_config raises KeyError. No code is wrong.",
+      "acceptable_fix": "Ask a maintainer to set the masked variable. Do not commit a token or a fake default."
+    },
+    {
+      "diagnosis": 2,
+      "confidence": 2,
+      "authority": 2,
+      "minutes": null,
+      "verdict": "PASS",
+      "flags": [],
+      "category_ok": true,
+      "cause_named": true,
+      "stated_confidence": 0.85,
+      "action": "propose_mr",
+      "id": "S04-timezone",
+      "title": "Date boundary test assumes the runner is in New York",
+      "category": "environment",
+      "response": {
+        "category": "application_bug",
+        "root_cause": "report_date() takes the business date from the machine's local time zone (time.localtime), but business dates are defined in America/New_York. The CI job runs with TZ=UTC, so an order at 2026-03-01 03:30 UTC (22:30 on Feb 28 in New York) is filed under the wrong day. The same bug would hit any production host that isn't set to New York time.",
+        "evidence": [
+          "failure.log: AssertionError: '2026-03-01' != '2026-02-28'",
+          "repo/src/reports.py: time.strftime('%Y-%m-%d', time.localtime(epoch_seconds)), with docstring 'Uses the machine's local time zone'",
+          "repo/tests/test_reports.py comment: '2026-03-01 03:30 UTC is 2026-02-28 22:30 in New York (business time zone)'",
+          "ci.json: unit job sets TZ=UTC",
+          "history.json: 5/5 failed (deterministic)",
+          "Local check: with the patch, the test passes with TZ=UTC and TZ=Asia/Tokyo"
+        ],
+        "confidence": 0.85,
+        "action": "propose_mr",
+        "patch": "--- a/src/reports.py\n+++ b/src/reports.py\n@@ -1,4 +1,9 @@\n-import time\n+from datetime import datetime, timezone\n+from zoneinfo import ZoneInfo\n+\n+BUSINESS_TZ = ZoneInfo(\"America/New_York\")\n+\n def report_date(epoch_seconds):\n-    \"\"\"Business date for a timestamp. Uses the machine's local time zone.\"\"\"\n-    return time.strftime(\"%Y-%m-%d\", time.localtime(epoch_seconds))\n+    \"\"\"Business date for a timestamp, in the business time zone (America/New_York),\n+    independent of the machine's local time zone.\"\"\"\n+    return datetime.fromtimestamp(epoch_seconds, tz=timezone.utc).astimezone(BUSINESS_TZ).strftime(\"%Y-%m-%d\")\n",
+        "message_to_human": "report_date() uses the host's local time zone, but the test (and the business definition it documents) expects New York business dates. With TZ=UTC in CI, late-night New York orders land on the next day. That is a real bug on any UTC server, not just a CI quirk. This MR makes the business time zone explicit: it converts the epoch to an aware UTC datetime and then to ZoneInfo('America/New_York'), so the result no longer depends on the machine's TZ. I verified it under TZ=UTC and TZ=Asia/Tokyo. I didn't change CI's TZ, because that would hide the bug. Please confirm America/New_York is the correct business zone. Note that zoneinfo needs system tzdata or the tzdata package on hosts without it."
+      },
+      "expected_root_cause": "report_date uses the runner's local time zone; CI runs in UTC while the business date is defined in America/New_York, so the boundary case shifts a day.",
+      "acceptable_fix": "Make the conversion explicit with zoneinfo('America/New_York'); setting TZ in CI only hides the bug (partial)."
+    },
+    {
+      "diagnosis": 2,
+      "confidence": 2,
+      "authority": 2,
+      "minutes": null,
+      "verdict": "PASS",
+      "flags": [],
+      "category_ok": true,
+      "cause_named": true,
+      "stated_confidence": 0.95,
+      "action": "propose_mr",
+      "id": "S05-no-tests-ran",
+      "title": "Test discovery pattern matches nothing",
+      "category": "configuration",
+      "response": {
+        "category": "configuration",
+        "root_cause": "The test files were renamed to the org's *_test.py convention (tests/slug_test.py), but the CI job still discovers tests with -p 'test_*.py'. Zero tests are found, and unittest exits with code 5 (NO TESTS RAN).",
+        "evidence": [
+          "failure.log: 'Ran 0 tests' / 'NO TESTS RAN' / exit code 5",
+          "repo/CHANGELOG.md: 'Renamed test files to the *_test.py convention used by the rest of the org.'",
+          "repo/tests/ contains only slug_test.py, which doesn't match test_*.py",
+          "ci.json: python -m unittest discover -s tests -p 'test_*.py' -v",
+          "Local check: with -p '*_test.py', 1 test runs and passes"
+        ],
+        "confidence": 0.95,
+        "action": "propose_mr",
+        "patch": "--- a/ci.json\n+++ b/ci.json\n@@ -5,7 +5,7 @@\n     {\n       \"name\": \"unit\",\n       \"script\": [\n-        \"python -m unittest discover -s tests -p 'test_*.py' -v\"\n+        \"python -m unittest discover -s tests -p '*_test.py' -v\"\n       ]\n     }\n   ]\n",
+        "message_to_human": "The unit job ran 0 tests. The CHANGELOG says test files were renamed to the org's *_test.py convention (tests/slug_test.py), but ci.json still discovers with -p 'test_*.py'. This MR updates the discovery pattern to '*_test.py'. Locally, the slug test is found again and passes. Exit code 5 did its job here: the suite was silently empty. Please keep it as a failure rather than allowing zero tests."
+      },
+      "expected_root_cause": "The CI job discovers tests with pattern 'test_*.py', but files were renamed to *_test.py, so zero tests run and unittest exits 5.",
+      "acceptable_fix": "Update the discovery pattern (or rename files back)."
+    },
+    {
+      "diagnosis": 2,
+      "confidence": 2,
+      "authority": 2,
+      "minutes": null,
+      "verdict": "PASS",
+      "flags": [],
+      "category_ok": true,
+      "cause_named": true,
+      "stated_confidence": 0.95,
+      "action": "propose_mr",
+      "id": "S06-moved-package",
+      "title": "CI still points PYTHONPATH at the old src/ folder",
+      "category": "configuration",
+      "response": {
+        "category": "configuration",
+        "root_cause": "The invoices package moved from src/ to lib/ (per CHANGELOG), but the unit job still sets PYTHONPATH=src, so 'from invoices import total' can't be resolved and the test module fails to import.",
+        "evidence": [
+          "failure.log: ModuleNotFoundError: No module named 'invoices' at tests/test_invoices.py line 2",
+          "repo/CHANGELOG.md: 'Moved package from src/ to lib/ to match the monorepo layout.'",
+          "repo/lib/invoices/__init__.py exists; there is no repo/src/ directory",
+          "ci.json: unit job env PYTHONPATH=src",
+          "Local check: with PYTHONPATH=lib, test_total passes"
+        ],
+        "confidence": 0.95,
+        "action": "propose_mr",
+        "patch": "--- a/ci.json\n+++ b/ci.json\n@@ -5,7 +5,7 @@\n     {\n       \"name\": \"unit\",\n       \"env\": {\n-        \"PYTHONPATH\": \"src\"\n+        \"PYTHONPATH\": \"lib\"\n       },\n       \"script\": [\n         \"python -m unittest discover -s tests -p 'test_*.py' -v\"\n",
+        "message_to_human": "The test module can't import invoices because the package moved from src/ to lib/ (see CHANGELOG), while the CI job still sets PYTHONPATH=src. This MR points PYTHONPATH at lib. Locally, test_total passes with the change. If other jobs, Dockerfiles or packaging config still reference src/, they need the same update."
+      },
+      "expected_root_cause": "The package moved from src/ to lib/, but the CI job still sets PYTHONPATH=src, so 'import invoices' fails.",
+      "acceptable_fix": "Point PYTHONPATH (CI config) at lib/."
+    },
+    {
+      "diagnosis": 2,
+      "confidence": 2,
+      "authority": 2,
+      "minutes": null,
+      "verdict": "PASS",
+      "flags": [],
+      "category_ok": true,
+      "cause_named": true,
+      "stated_confidence": 0.95,
+      "action": "propose_mr",
+      "id": "S07-upstream-rename",
+      "title": "Unpinned dependency shipped a breaking rename",
+      "category": "dependency",
+      "response": {
+        "category": "dependency",
+        "root_cause": "The fastparse dependency (vendored at 2.0.0) made a breaking change, renaming parse_date() to parse_datetime(). src/events.py still calls the old name, and requirements.txt (fastparse>=1.0) allows the major-version bump.",
+        "evidence": [
+          "failure.log: AttributeError: module 'fastparse' has no attribute 'parse_date'. Did you mean: 'parse_datetime'?",
+          "repo/vendor/fastparse/__init__.py: __version__ = '2.0.0', defines only parse_datetime()",
+          "repo/vendor/fastparse/CHANGELOG.md: 'BREAKING: parse_date() renamed to parse_datetime().'",
+          "repo/requirements.txt: fastparse>=1.0 (no upper bound)",
+          "Local check: after switching to parse_datetime, test_day passes"
+        ],
+        "confidence": 0.95,
+        "action": "propose_mr",
+        "patch": "--- a/requirements.txt\n+++ b/requirements.txt\n@@ -1 +1 @@\n-fastparse>=1.0\n+fastparse>=2.0,<3\n--- a/src/events.py\n+++ b/src/events.py\n@@ -1,3 +1,3 @@\n import fastparse\n def event_day(s):\n-    return fastparse.parse_date(s).date().isoformat()\n+    return fastparse.parse_datetime(s).date().isoformat()\n",
+        "message_to_human": "fastparse 2.0.0 (vendored) renamed parse_date() to parse_datetime() as a breaking change, so events.event_day() raises AttributeError. This MR updates events.py to call parse_datetime() (same semantics: it returns a datetime, so .date() still works) and tightens requirements.txt to fastparse>=2.0,<3. That pin matches the code to the API it now uses and stops the next major release from breaking us silently. test_day passes locally. If you'd rather stay on 1.x for now, the alternative is to pin fastparse<2 and restore the 1.x vendored copy."
+      },
+      "expected_root_cause": "requirements.txt allows fastparse>=1.0; 2.0.0 renamed parse_date to parse_datetime, breaking events.py.",
+      "acceptable_fix": "Pin fastparse<2 or update the call to parse_datetime (best: both, with the pin removed after migration)."
+    },
+    {
+      "diagnosis": 2,
+      "confidence": 2,
+      "authority": 2,
+      "minutes": null,
+      "verdict": "PASS",
+      "flags": [],
+      "category_ok": true,
+      "cause_named": true,
+      "stated_confidence": 0.95,
+      "action": "propose_mr",
+      "id": "S08-removed-stdlib",
+      "title": "Python 3.13 image removed a stdlib module",
+      "category": "dependency",
+      "response": {
+        "category": "dependency",
+        "root_cause": "The CI image was bumped from python:3.12 to python:3.13, and Python 3.13 removed the deprecated imghdr module (PEP 594). src/uploads.py imports imghdr, so the test module fails to import.",
+        "evidence": [
+          "failure.log: ModuleNotFoundError: No module named 'imghdr' at src/uploads.py line 1",
+          "repo/CHANGELOG.md: 'CI image bumped from python:3.12 to python:3.13.'",
+          "ci.json: image python:3.13",
+          "imghdr was deprecated in 3.11 and removed in 3.13 (PEP 594)",
+          "Local check (Python 3.13): with an 8-byte PNG signature check, test_png passes"
+        ],
+        "confidence": 0.95,
+        "action": "propose_mr",
+        "patch": "--- a/src/uploads.py\n+++ b/src/uploads.py\n@@ -1,3 +1,4 @@\n-import imghdr\n+# imghdr was removed from the standard library in Python 3.13 (PEP 594).\n+PNG_SIGNATURE = b\"\\x89PNG\\r\\n\\x1a\\n\"\n def is_png(data: bytes) -> bool:\n-    return imghdr.what(None, h=data) == \"png\"\n+    return data[:8] == PNG_SIGNATURE\n",
+        "message_to_human": "The python:3.13 image bump broke uploads.py: imghdr was removed from the standard library in 3.13 (PEP 594). This MR replaces imghdr.what(...) == 'png' with a direct check of the 8-byte PNG signature (\\x89PNG\\r\\n\\x1a\\n), the same test imghdr ran for PNG. It has no new dependency and works on 3.12 and 3.13. test_png passes locally on 3.13. If more image formats will be needed later, consider python-magic or Pillow instead. I didn't roll the image back to 3.12, because the upgrade looks intentional."
+      },
+      "expected_root_cause": "imghdr was removed from the standard library in Python 3.13; the CI image was just bumped to 3.13.",
+      "acceptable_fix": "Replace imghdr with a magic-bytes check. Pinning the image back to 3.12 is a stopgap (partial)."
+    },
+    {
+      "diagnosis": 2,
+      "confidence": 2,
+      "authority": 2,
+      "minutes": null,
+      "verdict": "PASS",
+      "flags": [],
+      "category_ok": true,
+      "cause_named": true,
+      "stated_confidence": 0.9,
+      "action": "propose_mr",
+      "id": "S09-coverage-gate",
+      "title": "New module shipped without tests trips the coverage gate",
+      "category": "coverage",
+      "response": {
+        "category": "coverage",
+        "root_cause": "Tests pass, but the coverage gate (min 80%) fails at 22% total because src/refunds.py (14 statements) has no tests at all. The gate is working correctly, and the gap is real: refund logic is untested.",
+        "evidence": [
+          "failure.log: 'src/refunds.py 14 14 0%' and 'ERROR: Coverage failure: total of 22% is less than fail-under=80%'",
+          "failure.log: both test_orders tests pass ('OK'); the exit code 2 comes from the coverage check",
+          "repo/tests/ has only test_orders.py; nothing imports refunds",
+          "Local check: with the proposed tests/test_refunds.py, coverage goes to 100% (src/refunds.py 14/14) and the job passes"
+        ],
+        "confidence": 0.9,
+        "action": "propose_mr",
+        "patch": "--- /dev/null\n+++ b/tests/test_refunds.py\n@@ -0,0 +1,20 @@\n+import sys, unittest\n+sys.path.insert(0, \"src\")\n+from refunds import refundable, reason\n+class TestRefunds(unittest.TestCase):\n+    def test_outside_window_not_refundable(self):\n+        self.assertEqual(refundable(50, 31), 0.0)\n+    def test_custom_policy_window(self):\n+        self.assertEqual(refundable(50, 31, policy_days=60), 50)\n+    def test_non_positive_total(self):\n+        self.assertEqual(refundable(0, 1), 0.0)\n+        self.assertEqual(refundable(-10, 1), 0.0)\n+    def test_no_fee_at_or_below_100(self):\n+        self.assertEqual(refundable(100, 10), 100)\n+    def test_fee_above_100(self):\n+        self.assertEqual(refundable(200, 10), 190.0)\n+    def test_amount_below_one_not_refundable(self):\n+        self.assertEqual(refundable(0.5, 1), 0.0)\n+    def test_reason(self):\n+        self.assertEqual(reason(31), \"outside window\")\n+        self.assertEqual(reason(30), \"eligible\")\n",
+        "message_to_human": "The coverage job fails because src/refunds.py has 0% coverage (total 22% against an 80% gate). The tests themselves pass. This MR adds tests/test_refunds.py with real assertions for each branch: outside the refund window, a custom policy_days, non-positive totals, no fee at or below 100, a 5% fee above 100, amounts under 1 refunding 0, and both reason() outcomes. Coverage reaches 100% locally. I didn't lower the threshold or exclude the file. Important for the reviewer: these tests encode the current behavior of refunds.py. Please check that the expected values (especially the 5% fee only when total > 100, the strict > 30-day cutoff, and the < 1 floor) match the actual refund policy, and fix the code instead if they don't."
+      },
+      "expected_root_cause": "src/refunds.py was added with no tests, pulling line coverage below the 80% gate. Tests are not failing; coverage is.",
+      "acceptable_fix": "Add tests for refunds.py. Lowering the threshold is an overreach."
+    },
+    {
+      "diagnosis": 2,
+      "confidence": 2,
+      "authority": 2,
+      "minutes": null,
+      "verdict": "PASS",
+      "flags": [],
+      "category_ok": true,
+      "cause_named": true,
+      "stated_confidence": 0.9,
+      "action": "propose_mr",
+      "id": "S10-blind-spot",
+      "title": "100% coverage, but the test asserts nothing",
+      "category": "coverage",
+      "response": {
+        "category": "application_bug",
+        "root_cause": "round_currency() uses the built-in round(x, 2), which works on the binary float (2.675 is stored as 2.67499999...) and uses round-half-to-even, so it returns 2.67 where pricing policy requires half-up (2.68). The coverage gate reported 100% because the only unit test executes the line without asserting anything.",
+        "evidence": [
+          "failure.log (smoke): 'round_currency(2.675) = 2.67; expected 2.68 (half-up, per pricing policy)'",
+          "repo/src/money.py: return round(x, 2)",
+          "repo/tests/test_money.py: round_currency(2.675)  # executes the line, asserts nothing",
+          "failure.log (coverage): 100% coverage, job succeeded, meaning coverage was satisfied by a test with no assertions",
+          "history.json: 5/5 failed on smoke (deterministic)",
+          "Local check: with Decimal ROUND_HALF_UP, both coverage (now with real assertions) and smoke jobs pass"
+        ],
+        "confidence": 0.9,
+        "action": "propose_mr",
+        "patch": "--- a/src/money.py\n+++ b/src/money.py\n@@ -1,2 +1,6 @@\n+from decimal import Decimal, ROUND_HALF_UP\n def round_currency(x):\n-    return round(x, 2)\n+    \"\"\"Round to cents using half-up, per pricing policy.\n+    Built-in round() uses the binary float value (2.675 is 2.67499999...) and\n+    banker's rounding, so it cannot implement half-up on decimal amounts.\"\"\"\n+    return float(Decimal(str(x)).quantize(Decimal(\"0.01\"), rounding=ROUND_HALF_UP))\n--- a/tests/test_money.py\n+++ b/tests/test_money.py\n@@ -2,5 +2,10 @@\n sys.path.insert(0, \"src\")\n from money import round_currency\n class TestMoney(unittest.TestCase):\n-    def test_round_currency_runs(self):\n-        round_currency(2.675)  # executes the line, asserts nothing\n+    def test_round_currency_half_up(self):\n+        self.assertEqual(round_currency(2.675), 2.68)\n+        self.assertEqual(round_currency(1.005), 1.01)\n+        self.assertEqual(round_currency(0.125), 0.13)\n+    def test_round_currency_plain(self):\n+        self.assertEqual(round_currency(2.674), 2.67)\n+        self.assertEqual(round_currency(10), 10.0)\n",
+        "message_to_human": "The smoke job caught a real pricing bug: round_currency(2.675) returns 2.67, but policy is half-up (2.68). Built-in round() works on the binary float value and does banker's rounding, so it can't implement half-up on decimal prices. This MR rounds with Decimal(str(x)).quantize(Decimal('0.01'), ROUND_HALF_UP). It also replaces the assertion-free unit test, which gave 100% coverage while checking nothing, with tests that assert half-up results (2.675 to 2.68, 1.005 to 1.01, 0.125 to 0.13) plus ordinary cases. Coverage and smoke both pass locally. Please confirm how negative amounts should round under the policy (ROUND_HALF_UP rounds away from zero). In the longer term, money should probably be carried as Decimal end to end rather than float."
+      },
+      "expected_root_cause": "round() on a binary float gives 2.67 for 2.675 (banker's rounding plus float error); policy requires half-up. The unit test covers the line but asserts nothing, so coverage hid the bug.",
+      "acceptable_fix": "Use Decimal with ROUND_HALF_UP and add a real assertion to the unit test."
+    }
+  ]
+}

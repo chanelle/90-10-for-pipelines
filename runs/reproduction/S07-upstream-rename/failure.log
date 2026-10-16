@@ -1,0 +1,21 @@
+Running job: unit (image: python:3.13)
+$ python -m unittest discover -s tests -p 'test_*.py' -v
+test_day (test_events.TestEvents.test_day) ... ERROR
+
+======================================================================
+ERROR: test_day (test_events.TestEvents.test_day)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp50fc5hys/repo/tests/test_events.py", line 5, in test_day
+    self.assertEqual(event_day("2026-10-15T09:00:00"), "2026-10-15")
+                     ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/tmp50fc5hys/repo/src/events.py", line 3, in event_day
+    return fastparse.parse_date(s).date().isoformat()
+           ^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'fastparse' has no attribute 'parse_date'. Did you mean: 'parse_datetime'?
+
+----------------------------------------------------------------------
+Ran 1 test in 0.001s
+
+FAILED (errors=1)
+ERROR: Job failed: exit code 1

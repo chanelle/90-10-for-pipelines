@@ -1,0 +1,19 @@
+Running job: coverage (image: python:3.13)
+$ python tools/coverage_gate.py --source src --min 90
+
+Name                 Stmts   Miss  Cover
+src/money.py             2      0   100%
+TOTAL                    2      0   100%
+Required coverage of 90% reached. Total coverage: 100%
+test_round_currency_runs (test_money.TestMoney.test_round_currency_runs) ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 0.001s
+
+OK
+Job succeeded
+
+Running job: smoke (image: python:3.13)
+$ python smoke/check_totals.py
+round_currency(2.675) = 2.67; expected 2.68 (half-up, per pricing policy)
+ERROR: Job failed: exit code 1

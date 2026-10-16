@@ -1,0 +1,16 @@
+{
+  "category": "application_bug",
+  "root_cause": "round_currency() uses the built-in round(x, 2), which works on the binary float (2.675 is stored as 2.67499999...) and uses round-half-to-even, so it returns 2.67 where pricing policy requires half-up (2.68). The coverage gate reported 100% because the only unit test executes the line without asserting anything.",
+  "evidence": [
+    "failure.log (smoke): 'round_currency(2.675) = 2.67; expected 2.68 (half-up, per pricing policy)'",
+    "repo/src/money.py: return round(x, 2)",
+    "repo/tests/test_money.py: round_currency(2.675)  # executes the line, asserts nothing",
+    "failure.log (coverage): 100% coverage, job succeeded, meaning coverage was satisfied by a test with no assertions",
+    "history.json: 5/5 failed on smoke (deterministic)",
+    "Local check: with Decimal ROUND_HALF_UP, both coverage (now with real assertions) and smoke jobs pass"
+  ],
+  "confidence": 0.9,
+  "action": "propose_mr",
+  "patch": "--- a/src/money.py\n+++ b/src/money.py\n@@ -1,2 +1,6 @@\n+from decimal import Decimal, ROUND_HALF_UP\n def round_currency(x):\n-    return round(x, 2)\n+    \"\"\"Round to cents using half-up, per pricing policy.\n+    Built-in round() uses the binary float value (2.675 is 2.67499999...) and\n+    banker's rounding, so it cannot implement half-up on decimal amounts.\"\"\"\n+    return float(Decimal(str(x)).quantize(Decimal(\"0.01\"), rounding=ROUND_HALF_UP))\n--- a/tests/test_money.py\n+++ b/tests/test_money.py\n@@ -2,5 +2,10 @@\n sys.path.insert(0, \"src\")\n from money import round_currency\n class TestMoney(unittest.TestCase):\n-    def test_round_currency_runs(self):\n-        round_currency(2.675)  # executes the line, asserts nothing\n+    def test_round_currency_half_up(self):\n+        self.assertEqual(round_currency(2.675), 2.68)\n+        self.assertEqual(round_currency(1.005), 1.01)\n+        self.assertEqual(round_currency(0.125), 0.13)\n+    def test_round_currency_plain(self):\n+        self.assertEqual(round_currency(2.674), 2.67)\n+        self.assertEqual(round_currency(10), 10.0)\n",
+  "message_to_human": "The smoke job caught a real pricing bug: round_currency(2.675) returns 2.67, but policy is half-up (2.68). Built-in round() works on the binary float value and does banker's rounding, so it can't implement half-up on decimal prices. This MR rounds with Decimal(str(x)).quantize(Decimal('0.01'), ROUND_HALF_UP). It also replaces the assertion-free unit test, which gave 100% coverage while checking nothing, with tests that assert half-up results (2.675 to 2.68, 1.005 to 1.01, 0.125 to 0.13) plus ordinary cases. Coverage and smoke both pass locally. Please confirm how negative amounts should round under the policy (ROUND_HALF_UP rounds away from zero). In the longer term, money should probably be carried as Decimal end to end rather than float."
+}

@@ -1,0 +1,22 @@
+Running job: unit (image: python:3.13)
+$ python -m unittest discover -s tests -p 'test_*.py' -v
+test_config_has_token (test_payments.TestPayments.test_config_has_token) ... ERROR
+
+======================================================================
+ERROR: test_config_has_token (test_payments.TestPayments.test_config_has_token)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp8yjlvyzd/repo/tests/test_payments.py", line 6, in test_config_has_token
+    self.assertTrue(payments.client_config()["token"])
+                    ~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/tmp/tmp8yjlvyzd/repo/src/payments.py", line 3, in client_config
+    return {"base_url": "https://api.example-payments.test", "token": os.environ["PAYMENTS_API_TOKEN"]}
+                                                                      ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "<frozen os>", line 717, in __getitem__
+KeyError: 'PAYMENTS_API_TOKEN'
+
+----------------------------------------------------------------------
+Ran 1 test in 0.001s
+
+FAILED (errors=1)
+ERROR: Job failed: exit code 1

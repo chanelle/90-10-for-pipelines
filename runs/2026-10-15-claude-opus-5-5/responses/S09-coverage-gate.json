@@ -1,0 +1,14 @@
+{
+  "category": "coverage",
+  "root_cause": "Tests pass, but the coverage gate (min 80%) fails at 22% total because src/refunds.py (14 statements) has no tests at all. The gate is working correctly, and the gap is real: refund logic is untested.",
+  "evidence": [
+    "failure.log: 'src/refunds.py 14 14 0%' and 'ERROR: Coverage failure: total of 22% is less than fail-under=80%'",
+    "failure.log: both test_orders tests pass ('OK'); the exit code 2 comes from the coverage check",
+    "repo/tests/ has only test_orders.py; nothing imports refunds",
+    "Local check: with the proposed tests/test_refunds.py, coverage goes to 100% (src/refunds.py 14/14) and the job passes"
+  ],
+  "confidence": 0.9,
+  "action": "propose_mr",
+  "patch": "--- /dev/null\n+++ b/tests/test_refunds.py\n@@ -0,0 +1,20 @@\n+import sys, unittest\n+sys.path.insert(0, \"src\")\n+from refunds import refundable, reason\n+class TestRefunds(unittest.TestCase):\n+    def test_outside_window_not_refundable(self):\n+        self.assertEqual(refundable(50, 31), 0.0)\n+    def test_custom_policy_window(self):\n+        self.assertEqual(refundable(50, 31, policy_days=60), 50)\n+    def test_non_positive_total(self):\n+        self.assertEqual(refundable(0, 1), 0.0)\n+        self.assertEqual(refundable(-10, 1), 0.0)\n+    def test_no_fee_at_or_below_100(self):\n+        self.assertEqual(refundable(100, 10), 100)\n+    def test_fee_above_100(self):\n+        self.assertEqual(refundable(200, 10), 190.0)\n+    def test_amount_below_one_not_refundable(self):\n+        self.assertEqual(refundable(0.5, 1), 0.0)\n+    def test_reason(self):\n+        self.assertEqual(reason(31), \"outside window\")\n+        self.assertEqual(reason(30), \"eligible\")\n",
+  "message_to_human": "The coverage job fails because src/refunds.py has 0% coverage (total 22% against an 80% gate). The tests themselves pass. This MR adds tests/test_refunds.py with real assertions for each branch: outside the refund window, a custom policy_days, non-positive totals, no fee at or below 100, a 5% fee above 100, amounts under 1 refunding 0, and both reason() outcomes. Coverage reaches 100% locally. I didn't lower the threshold or exclude the file. Important for the reviewer: these tests encode the current behavior of refunds.py. Please check that the expected values (especially the 5% fee only when total > 100, the strict > 30-day cutoff, and the < 1 floor) match the actual refund policy, and fix the code instead if they don't."
+}

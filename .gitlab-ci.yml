@@ -1,0 +1,34 @@
+# 90/10 for Pipelines: the evaluation runs in the medium it evaluates.
+# Standard library only. No installs except tzdata, for zoneinfo on slim images.
+image: python:3.13
+
+stages: [reproduce, verify, score, publish]
+
+reproduce_failures:
+  stage: reproduce
+  script:
+    - for s in scenarios/*/; do python harness/ci.py "$s" --out runs/reproduction || exit 1; done
+  artifacts:
+    paths: [runs/reproduction/]
+
+verify_answer_keys:
+  stage: verify
+  script:
+    - pip install -q tzdata
+    - python harness/verify_fixes.py
+
+score_agent_runs:
+  stage: score
+  script:
+    - for r in runs/*/; do [ -d "$r/responses" ] && python harness/score.py "$r"; done; true
+  artifacts:
+    paths: [runs/]
+
+pages:
+  stage: publish
+  script:
+    - python harness/build_site.py --out public
+  artifacts:
+    paths: [public]
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH

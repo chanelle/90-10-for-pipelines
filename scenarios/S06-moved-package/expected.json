@@ -1,0 +1,17 @@
+{
+  "root_cause": "The package moved from src/ to lib/, but the CI job still sets PYTHONPATH=src, so 'import invoices' fails.",
+  "evidence_terms": [
+    "PYTHONPATH|path|import",
+    "lib|src|moved|layout"
+  ],
+  "best_actions": [
+    "propose_mr"
+  ],
+  "acceptable_fix": "Point PYTHONPATH (CI config) at lib/.",
+  "overreach_patterns": [
+    "sys\\.path\\.insert.*src|skip"
+  ],
+  "id": "S06-moved-package",
+  "title": "CI still points PYTHONPATH at the old src/ folder",
+  "category": "configuration"
+}
