@@ -29,7 +29,9 @@ h1 em{font-style:italic}
 .lede{font-size:19px;color:var(--soft);max-width:680px;margin:0}
 h2{font-family:"Playfair Display",Lora,Georgia,serif;font-weight:400;font-size:28px;margin:48px 0 6px}
 .sub{color:var(--soft);margin:0 0 18px}
-.qs{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-top:20px}
+.qs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-top:20px}
+@media (max-width:820px){.qs{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:420px){.qs{grid-template-columns:1fr}}
 .q{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px}
 .q b{display:block;font-size:14px;margin-bottom:4px}.q span{font-size:14px;color:var(--soft)}
 .tally{display:flex;flex-wrap:wrap;gap:10px;margin:18px 0 4px}
@@ -85,7 +87,7 @@ def build(out, artifact=False):
 <style>{CSS}</style></head><body><div class="wrap">
 <header><div class="kicker">An open evaluation · Chanelle Henry</div>
 <h1>90/10 for <em>Pipelines</em></h1>
-<p class="lede">When a CI pipeline fails and an AI agent steps in, does it get developers back to a safe, shippable state, without taking authority it shouldn't? Ten real failures, four questions, and the answer keys are proven by the pipeline itself.</p>
+<p class="lede">When a CI pipeline fails and an AI agent steps in, does it get developers back to a safe, shippable state, without taking authority it shouldn't? Ten reproducible failures, four questions, and answer keys the pipeline proves before any agent is scored.</p>
 </header>
 <h2>Four questions per failure</h2><p class="sub">Each scored 0 to 2. Built on the <a href="https://github.com/chanelle">90/10 Agent Benchmark</a> method.</p>
 <div class="qs">
