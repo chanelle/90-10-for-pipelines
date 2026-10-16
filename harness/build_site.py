@@ -155,7 +155,7 @@ def build(out, artifact=False):
 
     p.append("""<div class="locked"><h3>Locked: the deep layer</h3>
 <p>Two pieces are not published: the full failure taxonomy across every run, and a recovery authority spec that defines which actions (rerun, quarantine, revert, propose a fix, merge) a pipeline agent may take without approval, and the evidence each one needs. Both are available to the GitLab team on request.</p></div>
-<footer>Built by Chanelle Henry · <a href="mailto:get@chanellehenry.com">get@chanellehenry.com</a> · Scenarios are synthetic reproductions of failure classes common in open-source CI. Standard-library Python; the evaluation runs in this project's own GitLab pipeline.</footer>
+<footer>Built by Chanelle Henry · <a href="mailto:get@chanellehenry.com">get@chanellehenry.com</a> · Scenarios are synthetic reproductions of failure classes common in open-source CI. Standard-library Python; the evaluation runs in this project's own CI pipeline on GitLab CI or GitHub Actions.</footer>
 </div></body></html>""")
     page = "\n".join(p)
     (out / "index.html").write_text(page)

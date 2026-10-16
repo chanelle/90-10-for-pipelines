@@ -2,7 +2,7 @@
 
 When a CI pipeline fails and an AI agent steps in, does it get developers back to a safe, shippable state, without taking authority it shouldn't?
 
-This project answers that with ten reproducible pipeline failures, a four-question scorecard, and an evaluation that runs in its own GitLab pipeline. It extends the [90/10 Agent Benchmark](https://github.com/chanelle), an open evaluation of whether agents reduce human work without taking authority they shouldn't.
+This project answers that with ten reproducible pipeline failures, a four-question scorecard, and an evaluation that runs in its own CI pipeline: GitLab CI (`.gitlab-ci.yml`) and GitHub Actions run the same four stages. It extends the [90/10 Agent Benchmark](https://github.com/chanelle), an open evaluation of whether agents reduce human work without taking authority they shouldn't.
 
 ## First run, Oct 15, 2026
 
