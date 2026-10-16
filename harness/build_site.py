@@ -1,6 +1,6 @@
 """Builds the public results page (GitLab Pages) from scenarios and scored runs.
 Usage: python harness/build_site.py --out public"""
-import argparse, html, json
+import argparse, html, json, re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -14,11 +14,14 @@ ACT = {"propose_mr": "Proposed an MR for review", "ask_human": "Asked a human", 
 CSS = """
 :root{--ink:#1d1d1b;--soft:#5b5b57;--line:#e4e2da;--bg:#fbfaf6;--card:#ffffff;--accent:#6f8b22;--accent-tint:#eef3df;
 --pass:#2f7a3b;--pass-t:#e4f2e6;--part:#9a6a00;--part-t:#fbf0d6;--fail:#b3261e;--fail-t:#fbe3e1;--lock:#3d4a5c}
-@media (prefers-color-scheme:dark){:root{--ink:#ecebe6;--soft:#a9a8a1;--line:#34342f;--bg:#151513;--card:#1d1d1a;--accent:#a8c45a;
---accent-tint:#26301a;--pass:#7cc488;--pass-t:#1c2e1f;--part:#e2b44f;--part-t:#33290f;--fail:#f08a83;--fail-t:#3a1d1b;--lock:#b4c0d0}}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--ink:#ecebe6;--soft:#a9a8a1;--line:#34342f;--bg:#151513;--card:#1d1d1a;--accent:#a8c45a;
+--accent-tint:#26301a;--pass:#7cc488;--pass-t:#1c2e1f;--part:#e2b44f;--part-t:#33290f;--fail:#f08a83;--fail-t:#3a1d1b;--lock:#b4c0d0;color-scheme:dark}}
+:root[data-theme="dark"]{--ink:#ecebe6;--soft:#a9a8a1;--line:#34342f;--bg:#151513;--card:#1d1d1a;--accent:#a8c45a;
+--accent-tint:#26301a;--pass:#7cc488;--pass-t:#1c2e1f;--part:#e2b44f;--part-t:#33290f;--fail:#f08a83;--fail-t:#3a1d1b;--lock:#b4c0d0;color-scheme:dark}
 *{box-sizing:border-box}html{-webkit-text-size-adjust:100%}
 body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif}
-.wrap{max-width:960px;margin:0 auto;padding:0 20px}
+.wrap{max-width:960px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+h1,h2{text-wrap:balance}summary:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 header{padding:56px 0 32px;border-bottom:1px solid var(--line)}
 .kicker{font-size:12px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--accent)}
 h1{font-family:"Playfair Display",Lora,Georgia,serif;font-weight:400;font-size:clamp(34px,6vw,54px);line-height:1.08;margin:10px 0 14px}
@@ -68,7 +71,7 @@ def scenario_rows():
         rows.append((s.name, exp, hist))
     return rows
 
-def build(out):
+def build(out, artifact=False):
     out = Path(out); out.mkdir(parents=True, exist_ok=True)
     runs = load_runs()
     run = runs[0] if runs else None
@@ -76,7 +79,7 @@ def build(out):
         pre_p = sorted((ROOT / "runs").glob("*/results_rubric_v1.0.json"))
         if pre_p: run["_pre"] = json.loads(pre_p[0].read_text())
     p = []
-    p.append(f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+    p.append(f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>90/10 for Pipelines</title><link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=Playfair+Display:ital@0;1&display=swap" rel="stylesheet">
 <style>{CSS}</style></head><body><div class="wrap">
@@ -154,8 +157,13 @@ def build(out):
 <p>Two pieces are not published: the full failure taxonomy across every run, and a recovery authority spec that defines which actions (rerun, quarantine, revert, propose a fix, merge) a pipeline agent may take without approval, and the evidence each one needs. Both are available to the GitLab team on request.</p></div>
 <footer>Built by Chanelle Henry · <a href="mailto:get@chanellehenry.com">get@chanellehenry.com</a> · Scenarios are synthetic reproductions of failure classes common in open-source CI. Standard-library Python; the evaluation runs in this project's own GitLab pipeline.</footer>
 </div></body></html>""")
-    (out / "index.html").write_text("\n".join(p))
+    page = "\n".join(p)
+    (out / "index.html").write_text(page)
+    if artifact:
+        head = re.search(r"<title>.*?</style>", page, re.S).group(0)
+        body = re.search(r"<body>(.*)</body>", page, re.S).group(1)
+        (out / "preview.html").write_text('<meta name="claude:viewport-fit-sides" content="cover">\n' + head + "\n" + body)
     print(f"site written to {out / 'index.html'}")
 
 if __name__ == "__main__":
-    ap = argparse.ArgumentParser(); ap.add_argument("--out", default="public"); a = ap.parse_args(); build(a.out)
+    ap = argparse.ArgumentParser(); ap.add_argument("--out", default="public"); ap.add_argument("--artifact", action="store_true"); a = ap.parse_args(); build(a.out, a.artifact)
